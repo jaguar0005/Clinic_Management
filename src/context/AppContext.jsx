@@ -16,8 +16,19 @@ import {
   registerUser,
   getStoredSession,
   clearStoredSession,
-  getDatabaseUsers
+  getDatabaseUsers,
+  getStoredPatients,
+  saveNewPatient,
+  getStoredFacilities,
+  saveStoredFacilities,
+  getStoredAppointments,
+  saveStoredAppointments
 } from '../services/db';
+import {
+  saveDocumentToDb,
+  getAllStoredDocuments,
+  getCachedDocuments
+} from '../services/documentDb';
 
 const AppContext = createContext(null);
 
@@ -55,16 +66,45 @@ export const AppProvider = ({ children }) => {
   });
 
   const [userRole, setUserRole] = useState(() => currentUser?.role || 'patient');
-  const [currentPatient] = useState(CURRENT_PATIENT);
-  const [appointments, setAppointments] = useState(INITIAL_APPOINTMENTS);
+
+  // Compute active patient profile dynamically from currentUser so newly registered patients get their own profile!
+  const activePatient = currentUser?.role === 'patient'
+    ? {
+        id: currentUser.patientId || currentUser.id,
+        name: currentUser.name,
+        age: currentUser.age || 38,
+        gender: currentUser.gender || 'Patient',
+        bloodGroup: currentUser.bloodGroup || 'O+',
+        phone: currentUser.phone || '+1 (555) 234-8901',
+        email: currentUser.email,
+        address: currentUser.address || '742 Evergreen Terrace, Metro City',
+        emergencyContact: currentUser.emergencyContact || 'Emergency Contact On File',
+        allergies: currentUser.allergies || 'None reported',
+        chronicConditions: currentUser.chronicConditions || 'General observation'
+      }
+    : CURRENT_PATIENT;
+
+  const [appointments, setAppointments] = useState(() => getStoredAppointments(INITIAL_APPOINTMENTS));
   const [bloodRequests, setBloodRequests] = useState(INITIAL_BLOOD_REQUESTS);
   const [ambulanceRequests, setAmbulanceRequests] = useState(INITIAL_AMBULANCE_REQUESTS);
-  const [documents, setDocuments] = useState(INITIAL_DOCUMENTS);
+  const [documents, setDocuments] = useState(() => {
+    const cached = getCachedDocuments();
+    return cached.length > 0 ? cached : INITIAL_DOCUMENTS;
+  });
   const [notifications, setNotifications] = useState(INITIAL_NOTIFICATIONS);
-  const [patients] = useState(SEEDED_PATIENTS);
+  const [patients, setPatients] = useState(() => getStoredPatients(SEEDED_PATIENTS));
   const [doctors] = useState(SEEDED_DOCTORS);
   const [bloodBanks] = useState(SEEDED_BLOOD_BANKS);
-  const [facilities] = useState(SEEDED_FACILITIES);
+  const [facilities, setFacilities] = useState(() => getStoredFacilities(SEEDED_FACILITIES));
+
+  // Hydrate documents from persistent database asynchronously
+  useEffect(() => {
+    getAllStoredDocuments(INITIAL_DOCUMENTS).then(docs => {
+      if (docs && docs.length > 0) {
+        setDocuments(docs);
+      }
+    });
+  }, []);
 
   // Sync role when currentUser changes
   useEffect(() => {
@@ -117,6 +157,8 @@ export const AppProvider = ({ children }) => {
     if (result.success) {
       setCurrentUser(result.user);
       setUserRole(result.user.role);
+      // Immediately refresh patient registry so Doctor and Admin see the newly registered patient!
+      setPatients(getStoredPatients(SEEDED_PATIENTS));
     }
     return result;
   };
@@ -171,10 +213,46 @@ export const AppProvider = ({ children }) => {
     }
   };
 
+  // Facility management (Admin can add new hospital / clinic on map)
+  const addFacility = (newFac) => {
+    const facility = {
+      id: `FAC-${Date.now()}`,
+      name: newFac.name,
+      type: newFac.type || 'hospital',
+      lat: Number(newFac.lat) || 40.7150,
+      lng: Number(newFac.lng) || -74.0050,
+      address: newFac.address || 'Metro City Center',
+      distance: newFac.distance || '1.8 km',
+      specialties: newFac.specialties || 'Comprehensive Care & Diagnostics',
+      phone: newFac.phone || '+1 (555) 010-2200',
+      emergencyBeds: Number(newFac.emergencyBeds) || 6,
+      operatingHours: newFac.operatingHours || '24 Hours / 7 Days'
+    };
+
+    setFacilities(prev => {
+      const updated = [facility, ...prev];
+      saveStoredFacilities(updated);
+      return updated;
+    });
+
+    const newNotif = {
+      id: `NOTIF-${Date.now()}`,
+      title: 'Facility Registry Updated',
+      description: `New ${facility.type}: ${facility.name} added to regional health map.`,
+      type: 'system',
+      timestamp: 'Just now'
+    };
+    setNotifications(prev => [newNotif, ...prev]);
+
+    return facility;
+  };
+
   // Appointment validation and booking
   const bookAppointment = (data) => {
     const newMins = getAppointmentMinutes(data.date, data.time);
-    const activePatientId = currentUser?.patientId || currentPatient.id;
+    const activePatientId = currentUser?.patientId || activePatient.id;
+    const activePatientName = currentUser?.name || activePatient.name;
+    const activePatientEmail = currentUser?.email || activePatient.email;
 
     // Rule 1: Patient cannot book two appointments with less than 1-hour (60 mins) difference on the same date
     const patientConflict = appointments.find(apt => {
@@ -215,7 +293,8 @@ export const AppProvider = ({ children }) => {
     const newAppointment = {
       id: `APT-${Math.floor(1000 + Math.random() * 9000)}`,
       patientId: activePatientId,
-      patientName: currentUser?.name || currentPatient.name,
+      patientName: activePatientName,
+      patientEmail: activePatientEmail,
       doctorId: data.doctorId,
       doctorName: data.doctorName,
       specialization: data.specialization,
@@ -230,7 +309,11 @@ export const AppProvider = ({ children }) => {
       createdAt: new Date().toISOString()
     };
 
-    setAppointments(prev => [newAppointment, ...prev]);
+    setAppointments(prev => {
+      const updated = [newAppointment, ...prev];
+      saveStoredAppointments(updated);
+      return updated;
+    });
 
     // Push notification
     const newNotif = {
@@ -250,8 +333,8 @@ export const AppProvider = ({ children }) => {
   // Cancelled is irreversible! Once cancelled, no other status can be set.
   // Confirmed cannot go back to Requested. Checked-In cannot go back to Confirmed.
   const updateAppointmentStatus = (appointmentId, newStatus) => {
-    setAppointments(prev =>
-      prev.map(apt => {
+    setAppointments(prev => {
+      const updated = prev.map(apt => {
         if (apt.id !== appointmentId) return apt;
 
         // If already cancelled or completed, it is terminal and cannot be changed!
@@ -264,33 +347,50 @@ export const AppProvider = ({ children }) => {
         if (apt.status === 'Checked-In' && (newStatus === 'Confirmed' || newStatus === 'Requested')) return apt;
 
         return { ...apt, status: newStatus };
-      })
-    );
+      });
+      saveStoredAppointments(updated);
+      return updated;
+    });
   };
 
-  // Cancel appointment with mandatory / optional short reason note
+  // Cancel appointment: Patients can ONLY cancel their own appointment!
   const cancelAppointment = (appointmentId, reasonNote, cancelledBy) => {
-    setAppointments(prev =>
-      prev.map(apt => {
+    const activePatientId = currentUser?.patientId || activePatient.id;
+
+    setAppointments(prev => {
+      const updated = prev.map(apt => {
         if (apt.id !== appointmentId) return apt;
         // Cannot cancel if already completed
         if (apt.status === 'Completed') return apt;
 
+        // If caller is patient, ensure they own this appointment!
+        if (currentUser?.role === 'patient') {
+          const isOwn = apt.patientId === activePatientId ||
+                        (currentUser?.email && apt.patientEmail?.toLowerCase() === currentUser.email.toLowerCase()) ||
+                        (currentUser?.name && apt.patientName?.toLowerCase() === currentUser.name.toLowerCase());
+          if (!isOwn) {
+            console.warn('Unauthorized: Patient can only cancel their own appointment.');
+            return apt;
+          }
+        }
+
         return {
           ...apt,
           status: 'Cancelled',
-          cancellationReason: reasonNote || 'Appointment cancelled by clinic.',
-          cancelledBy: cancelledBy || currentUser?.name || 'Staff'
+          cancellationReason: reasonNote || 'Appointment cancelled by patient/clinic.',
+          cancelledBy: cancelledBy || currentUser?.name || 'Patient'
         };
-      })
-    );
+      });
+      saveStoredAppointments(updated);
+      return updated;
+    });
   };
 
   // Blood request actions with doctor assignment & automated progression
   const createBloodRequest = (data) => {
     const newRequest = {
       id: `BLD-${Math.floor(400 + Math.random() * 599)}`,
-      patientName: data.patientName || currentUser?.name || currentPatient.name,
+      patientName: data.patientName || currentUser?.name || activePatient.name,
       bloodGroup: data.bloodGroup,
       units: Number(data.units),
       hospital: data.hospital,
@@ -370,7 +470,7 @@ export const AppProvider = ({ children }) => {
   const createAmbulanceRequest = (data) => {
     const newAmbulance = {
       id: `AMB-${Math.floor(800 + Math.random() * 199)}`,
-      patientName: data.patientName || currentUser?.name || currentPatient.name,
+      patientName: data.patientName || currentUser?.name || activePatient.name,
       pickupLocation: data.pickupLocation,
       destination: data.destination,
       contact: data.contact,
@@ -396,21 +496,58 @@ export const AppProvider = ({ children }) => {
     return newAmbulance;
   };
 
-  // Document upload
-  const uploadDocument = (docFile) => {
+  // Document upload with persistent database storage
+  const uploadDocument = async (docFile) => {
+    const activePatientId = currentUser?.patientId || activePatient.id;
+    const activePatientName = currentUser?.name || activePatient.name;
+
     const newDoc = {
       id: `DOC-FILE-${Date.now()}`,
       fileName: docFile.name,
       fileSize: `${(docFile.size / 1024).toFixed(0)} KB`,
-      fileType: docFile.type.includes('image') ? 'Medical Image' : 'Clinical Record',
+      fileType: docFile.type?.includes('image') ? 'Medical Image' : 'Clinical Record',
       uploadedAt: new Date().toISOString().split('T')[0],
-      category: 'Patient Upload',
-      doctor: 'Awaiting Staff Review',
-      previewUrl: docFile.previewUrl || null
+      category: 'Patient Diagnostic Upload',
+      doctor: 'Dr. Sarah Jenkins, MD',
+      previewUrl: docFile.previewUrl || null,
+      patientId: activePatientId,
+      patientName: activePatientName
     };
 
-    setDocuments(prev => [newDoc, ...prev]);
+    await saveDocumentToDb(newDoc);
+    setDocuments(prev => [newDoc, ...prev.filter(d => d.id !== newDoc.id)]);
     return newDoc;
+  };
+
+  // Administrative patient enrollment
+  const enrollPatient = (data) => {
+    const newPatient = {
+      id: `PT-${Math.floor(10000 + Math.random() * 89999)}`,
+      name: data.name,
+      age: Number(data.age) || 35,
+      gender: data.gender || 'Not specified',
+      bloodGroup: data.bloodGroup || 'O+',
+      phone: data.phone || '+1 (555) 000-0000',
+      email: data.email || `patient.${Date.now()}@metrohealth.org`,
+      address: data.address || '742 Evergreen Terrace, Metro City',
+      emergencyContact: data.emergencyContact || 'Family Contact on File',
+      allergies: data.allergies || 'None reported',
+      chronicConditions: data.chronicConditions || 'General observation'
+    };
+
+    saveNewPatient(newPatient);
+    setPatients(getStoredPatients(SEEDED_PATIENTS));
+
+    const newNotif = {
+      id: `NOTIF-${Date.now()}`,
+      title: 'New Patient Registered',
+      description: `EHR profile created for ${newPatient.name} (MRN: ${newPatient.id}).`,
+      type: 'system',
+      timestamp: 'Just now'
+    };
+    setNotifications(prev => [newNotif, ...prev]);
+
+    return newPatient;
   };
 
   return (
@@ -423,7 +560,8 @@ export const AppProvider = ({ children }) => {
         register,
         logout,
         switchUser,
-        currentPatient,
+        currentPatient: activePatient,
+        activePatient,
         appointments,
         doctors,
         bloodBanks,
@@ -433,6 +571,8 @@ export const AppProvider = ({ children }) => {
         notifications,
         patients,
         facilities,
+        addFacility,
+        enrollPatient,
         bookAppointment,
         cancelAppointment,
         updateAppointmentStatus,

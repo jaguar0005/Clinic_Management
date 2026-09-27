@@ -14,6 +14,7 @@ import {
   Printer
 } from 'lucide-react';
 import { StatusPill } from './StatusPill';
+import { GoogleDriveDocViewer } from './GoogleDriveDocViewer';
 
 export const PatientProfileModal = ({
   patient,
@@ -205,78 +206,12 @@ export const PatientProfileModal = ({
         </div>
       </div>
 
-      {/* Document Inspector Modal with Full Preview */}
-      {inspectingDoc && (
-        <div className="fixed inset-0 z-60 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl border border-[#E5E5E5] max-w-2xl w-full p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between border-b border-[#E5E5E5] pb-3">
-              <div>
-                <h3 className="text-sm font-bold text-[#1A1A1A] truncate max-w-md">
-                  {inspectingDoc.fileName}
-                </h3>
-                <p className="text-xs text-[#5C5C5C]">
-                  {inspectingDoc.category} • {inspectingDoc.fileSize} • Uploaded {inspectingDoc.uploadedAt}
-                </p>
-              </div>
-              <button
-                onClick={() => setInspectingDoc(null)}
-                className="text-[#5C5C5C] hover:text-[#1A1A1A] p-1.5 rounded-lg hover:bg-[#F7F7F7]"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Visual Document Content / SVG Scan Preview */}
-            <div className="p-3 bg-[#F7F7F7] rounded-xl border border-[#E5E5E5] flex items-center justify-center min-h-[240px] max-h-[380px] overflow-hidden">
-              {inspectingDoc.previewUrl ? (
-                <img
-                  src={inspectingDoc.previewUrl}
-                  alt={inspectingDoc.fileName}
-                  className="max-h-[340px] w-full rounded-lg object-contain border border-[#E5E5E5] shadow-xs bg-white"
-                />
-              ) : (
-                <div className="text-center space-y-3 py-6">
-                  <div className="w-14 h-14 rounded-full bg-[#E6F4EC] text-[#0F7A4C] flex items-center justify-center mx-auto">
-                    <FileText className="w-7 h-7" />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-[#1A1A1A]">{inspectingDoc.fileName}</h4>
-                    <p className="text-xs text-[#5C5C5C] mt-0.5">Clinical PDF Imaging &amp; Diagnostic Telemetry Report</p>
-                  </div>
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#E6F4EC] text-[#0F7A4C] rounded-lg text-xs font-semibold border border-[#C8E6D5]">
-                    <CheckCircle className="w-3.5 h-3.5" />
-                    <span>Cryptographically Signed Clinical Record</span>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="text-xs text-[#5C5C5C] bg-[#FAFAFA] p-3 rounded-lg border border-[#E5E5E5] flex items-center justify-between">
-              <div>
-                <span>Authorizing Clinician: <strong className="text-[#1A1A1A]">{inspectingDoc.doctor || 'Dr. Sarah Jenkins, MD'}</strong></span>
-                <span className="block text-[11px] text-[#0F7A4C] font-mono mt-0.5">SHA-256: 8f9b2a7d4e1c390a... (Verified)</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => alert(`Simulating print for ${inspectingDoc.fileName}`)}
-                  className="px-3 py-1.5 text-xs font-medium bg-white border border-[#E5E5E5] text-[#1A1A1A] rounded-lg hover:bg-[#F7F7F7] flex items-center gap-1.5"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  <span>Print</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setInspectingDoc(null)}
-                  className="px-4 py-1.5 text-xs font-semibold bg-[#0F7A4C] text-white rounded-lg hover:bg-[#0c633d]"
-                >
-                  Close Viewer
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Google Drive Style Document Viewer for Doctor & Clinical Inspection */}
+      <GoogleDriveDocViewer
+        document={inspectingDoc}
+        isOpen={!!inspectingDoc}
+        onClose={() => setInspectingDoc(null)}
+      />
 
       {/* Appointment Detail Inspector Modal */}
       {inspectingApt && (

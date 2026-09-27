@@ -18,16 +18,26 @@ import { useApp } from '../../context/AppContext';
 import { StatusPill } from '../../components/StatusPill';
 
 export const PatientDashboard = () => {
-  const { currentPatient, appointments, notifications, bloodRequests, ambulanceRequests } = useApp();
+  const { currentUser, currentPatient, appointments, notifications, bloodRequests, ambulanceRequests } = useApp();
   const navigate = useNavigate();
 
-  // Find next upcoming appointment (non-cancelled, future date or first confirmed)
-  const nextAppointment = appointments.find(
-    apt => apt.patientId === currentPatient.id && apt.status !== 'Cancelled' && apt.status !== 'Completed'
-  ) || appointments[0];
+  const activePatientId = currentUser?.patientId || currentPatient.id;
+  const activePatientName = currentUser?.name || currentPatient.name;
+
+  // Find next upcoming appointment ONLY for this active patient
+  const myAppointments = appointments.filter(apt => {
+    const matchesId = apt.patientId && apt.patientId === activePatientId;
+    const matchesEmail = currentUser?.email && apt.patientEmail && apt.patientEmail.toLowerCase() === currentUser.email.toLowerCase();
+    const matchesName = currentUser?.name && apt.patientName && apt.patientName.toLowerCase() === currentUser.name.toLowerCase();
+    return matchesId || matchesEmail || matchesName;
+  });
+
+  const nextAppointment = myAppointments.find(
+    apt => apt.status !== 'Cancelled' && apt.status !== 'Completed'
+  );
 
   const activeAmbulance = ambulanceRequests.find(r => r.status !== 'Completed');
-  const activeBloodRequest = bloodRequests.find(r => r.patientName === currentPatient.name && r.status !== 'Availability Found');
+  const activeBloodRequest = bloodRequests.find(r => (r.patientName === activePatientName || r.patientId === activePatientId) && r.status !== 'Availability Found');
 
   return (
     <div className="space-y-6">

@@ -208,6 +208,23 @@ export const registerUser = ({ email, password, name, role, doctorId, specializa
     localStorage.setItem(DB_SESSION_KEY, JSON.stringify(sessionUser));
   } catch {}
 
+  // If new user is a patient, register in patient directory
+  if (role === 'patient') {
+    saveNewPatient({
+      id: newUser.patientId,
+      name: newUser.name,
+      age: 34,
+      gender: 'Patient',
+      bloodGroup: newUser.bloodGroup || 'O+',
+      phone: newUser.phone,
+      email: newUser.email,
+      address: '742 Evergreen Terrace, Metro City',
+      emergencyContact: 'Family Contact - ' + newUser.phone,
+      allergies: 'None reported',
+      chronicConditions: 'General outpatient observation'
+    });
+  }
+
   return { success: true, user: sessionUser };
 };
 
@@ -225,3 +242,113 @@ export const clearStoredSession = () => {
     localStorage.removeItem(DB_SESSION_KEY);
   } catch {}
 };
+
+// ==========================================
+// PATIENTS DATABASE PERSISTENCE
+// ==========================================
+const DB_PATIENTS_KEY = 'pulsepoint_patients_db';
+
+export const saveNewPatient = (patient) => {
+  try {
+    const existing = getStoredPatients([]);
+    const filtered = existing.filter(p => p.id !== patient.id && p.email !== patient.email);
+    const updated = [patient, ...filtered];
+    localStorage.setItem(DB_PATIENTS_KEY, JSON.stringify(updated));
+    return updated;
+  } catch {
+    return [patient];
+  }
+};
+
+export const getStoredPatients = (seededPatients = []) => {
+  try {
+    const raw = localStorage.getItem(DB_PATIENTS_KEY);
+    let patients = raw ? JSON.parse(raw) : [];
+
+    // Combine with seeded patients
+    const map = new Map();
+    seededPatients.forEach(p => map.set(p.id, p));
+    patients.forEach(p => map.set(p.id, p));
+
+    // Also verify all registered database users with role 'patient' are present
+    const users = getDatabaseUsers();
+    users.filter(u => u.role === 'patient').forEach(u => {
+      const pid = u.patientId || u.id;
+      if (!map.has(pid)) {
+        map.set(pid, {
+          id: pid,
+          name: u.name,
+          age: 36,
+          gender: 'Patient',
+          bloodGroup: u.bloodGroup || 'O+',
+          phone: u.phone,
+          email: u.email,
+          address: '742 Evergreen Terrace, Metro City',
+          emergencyContact: 'Family Contact - ' + u.phone,
+          allergies: 'None reported',
+          chronicConditions: 'General outpatient observation'
+        });
+      }
+    });
+
+    const result = Array.from(map.values());
+    localStorage.setItem(DB_PATIENTS_KEY, JSON.stringify(result));
+    return result;
+  } catch {
+    return seededPatients;
+  }
+};
+
+// ==========================================
+// FACILITIES DATABASE PERSISTENCE
+// ==========================================
+const DB_FACILITIES_KEY = 'pulsepoint_facilities_db';
+
+export const getStoredFacilities = (seededFacilities = []) => {
+  try {
+    const raw = localStorage.getItem(DB_FACILITIES_KEY);
+    if (!raw) {
+      localStorage.setItem(DB_FACILITIES_KEY, JSON.stringify(seededFacilities));
+      return seededFacilities;
+    }
+    const facilities = JSON.parse(raw);
+    // Ensure all seeded facilities exist
+    const map = new Map();
+    seededFacilities.forEach(f => map.set(f.id, f));
+    facilities.forEach(f => map.set(f.id, f));
+    return Array.from(map.values());
+  } catch {
+    return seededFacilities;
+  }
+};
+
+export const saveStoredFacilities = (facilities) => {
+  try {
+    localStorage.setItem(DB_FACILITIES_KEY, JSON.stringify(facilities));
+  } catch {}
+};
+
+// ==========================================
+// APPOINTMENTS DATABASE PERSISTENCE
+// ==========================================
+const DB_APPOINTMENTS_KEY = 'pulsepoint_appointments_db';
+
+export const getStoredAppointments = (initialAppointments = []) => {
+  try {
+    const raw = localStorage.getItem(DB_APPOINTMENTS_KEY);
+    if (!raw) {
+      localStorage.setItem(DB_APPOINTMENTS_KEY, JSON.stringify(initialAppointments));
+      return initialAppointments;
+    }
+    return JSON.parse(raw);
+  } catch {
+    return initialAppointments;
+  }
+};
+
+export const saveStoredAppointments = (appointments) => {
+  try {
+    localStorage.setItem(DB_APPOINTMENTS_KEY, JSON.stringify(appointments));
+  } catch {}
+};
+

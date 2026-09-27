@@ -15,10 +15,12 @@ import { useApp } from '../../context/AppContext';
 import { StatusPill } from '../../components/StatusPill';
 
 export const PatientAppointments = () => {
-  const { currentPatient, appointments, doctors, bookAppointment, cancelAppointment } = useApp();
+  const { currentUser, currentPatient, appointments, doctors, bookAppointment, cancelAppointment } = useApp();
   const [filter, setFilter] = useState('all'); // 'all' | 'upcoming' | 'past'
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [bookingSuccessMsg, setBookingSuccessMsg] = useState(null);
+
+  const activePatientId = currentUser?.patientId || currentPatient.id;
 
   // Booking Flow State
   const [bookingStep, setBookingStep] = useState(1); // 1: Doctor -> 2: Date & Slot -> 3: Details & Confirm
@@ -28,8 +30,13 @@ export const PatientAppointments = () => {
   const [consultType, setConsultType] = useState('Routine Check-up & Consultation');
   const [consultNotes, setConsultNotes] = useState('');
 
-  // Filter patient appointments
-  const patientAppointments = appointments.filter(apt => apt.patientId === currentPatient.id);
+  // Strict patient appointment isolation: patient only sees their own appointments!
+  const patientAppointments = appointments.filter(apt => {
+    const matchesId = apt.patientId && apt.patientId === activePatientId;
+    const matchesEmail = currentUser?.email && apt.patientEmail && apt.patientEmail.toLowerCase() === currentUser.email.toLowerCase();
+    const matchesName = currentUser?.name && apt.patientName && apt.patientName.toLowerCase() === currentUser.name.toLowerCase();
+    return matchesId || matchesEmail || matchesName;
+  });
 
   const filteredAppointments = patientAppointments.filter(apt => {
     if (filter === 'upcoming') {

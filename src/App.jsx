@@ -25,6 +25,7 @@ import { AdminAppointments } from './pages/admin/AdminAppointments';
 import { AdminPatients } from './pages/admin/AdminPatients';
 import { AdminEmergency } from './pages/admin/AdminEmergency';
 import { AdminUsers } from './pages/admin/AdminUsers';
+import { AdminMapPage } from './pages/admin/AdminMapPage';
 
 function App() {
   return (
@@ -60,7 +61,7 @@ function App() {
             <Route path="patients" element={<AdminPatients />} />
             <Route path="emergency" element={<AdminEmergency />} />
             <Route path="users" element={<AdminUsers />} />
-            <Route path="map" element={<StaffMapPage />} />
+            <Route path="map" element={<AdminMapPage />} />
           </Route>
 
           {/* Catch-all Fallback */}
