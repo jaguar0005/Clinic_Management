@@ -1,0 +1,109 @@
+@import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+
+@layer base {
+  :root {
+    --primary-green: #0F7A4C;
+    --primary-green-hover: #0c633d;
+    --secondary-green: #E6F4EC;
+    --emergency-red: #C4302B;
+    --emergency-red-hover: #a82723;
+    --emergency-red-light: #FDE8E8;
+    --text-primary: #1A1A1A;
+    --text-secondary: #5C5C5C;
+    --border-color: #E5E5E5;
+    --card-bg: #F7F7F7;
+  }
+
+  * {
+    border-color: #E5E5E5;
+  }
+
+  body {
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color: #1A1A1A;
+    background-color: #FFFFFF;
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+  }
+
+  /* Typography strict hierarchy */
+  h1 {
+    font-size: 1.625rem; /* 26px */
+    font-weight: 600;
+    line-height: 1.25;
+    color: #1A1A1A;
+    letter-spacing: -0.015em;
+  }
+
+  h2 {
+    font-size: 1.125rem; /* 18px */
+    font-weight: 600;
+    line-height: 1.35;
+    color: #1A1A1A;
+  }
+
+  h3 {
+    font-size: 1rem; /* 16px */
+    font-weight: 600;
+    line-height: 1.4;
+    color: #1A1A1A;
+  }
+
+  p, span, div, input, select, textarea, button {
+    font-size: 0.875rem; /* 14px */
+  }
+}
+
+/* Card design system */
+.health-card {
+  background-color: #FFFFFF;
+  border: 1px solid #E5E5E5;
+  border-radius: 8px;
+  transition: box-shadow 150ms ease, border-color 150ms ease;
+}
+
+.health-card:hover {
+  box-shadow: 0 2px 6px -1px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
+}
+
+/* Leaflet map styles */
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  z-index: 10;
+  font-family: inherit;
+}
+
+/* Custom map marker styles */
+.custom-dot-marker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.marker-pin {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid #FFFFFF;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+
+.marker-pin.hospital {
+  background-color: #0F7A4C;
+}
+
+.marker-pin.clinic {
+  background-color: #2563EB;
+}
+
+.marker-pin.blood-bank {
+  background-color: #C4302B;
+}
+
+.marker-pin.ambulance {
+  background-color: #D97706;
+}
